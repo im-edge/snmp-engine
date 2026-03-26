@@ -11,7 +11,6 @@ use IMEdge\SnmpEngine\Result\SnmpTablesResult;
 use IMEdge\SnmpEngine\Usm\ClientContext;
 use IMEdge\SnmpPacket\Error\SnmpAuthenticationException;
 use IMEdge\SnmpPacket\Error\SnmpError;
-use IMEdge\SnmpPacket\Message\VarBind;
 use IMEdge\SnmpPacket\Pdu\GetBulkRequest;
 use IMEdge\SnmpPacket\Pdu\GetNextRequest;
 use IMEdge\SnmpPacket\Pdu\GetRequest;
@@ -103,9 +102,14 @@ class SnmpPoller
         $tables = new SnmpTablesResult($oids, $nonRepeaters, $maxRepetitions);
         $requests = 0;
         $maxRequests = 10_000;
-        while (! empty($fetch = $tables->getNextOidsToFetch())) {
+        while ($tables->wantsMore()) {
             $tables->appendResults(
-                $this->getBulk($clientId, $fetch, $tables->getMaxRepetitions(), $tables->getNonRepeaters()),
+                $this->getBulk(
+                    $clientId,
+                    $tables->getNextOidsToFetch(),
+                    $tables->getMaxRepetitions(),
+                    $tables->getNonRepeaters()
+                ),
             );
             $requests++;
             if ($requests === $maxRequests) {

@@ -2,6 +2,8 @@
 
 namespace IMEdge\SnmpEngine\Result;
 
+use IMEdge\SnmpPacket\Error\SnmpError;
+use IMEdge\SnmpPacket\ErrorStatus;
 use IMEdge\SnmpPacket\Pdu\Pdu;
 
 class SnmpTablesResult
@@ -35,7 +37,17 @@ class SnmpTablesResult
 
     public function appendResults(Pdu $pdu): void
     {
-        // TODO : check for tooBig...
+        switch ($pdu->errorStatus) {
+            case ErrorStatus::NO_ERROR:
+                break;
+            case ErrorStatus::TOO_BIG:
+                $this->shrinkMaxRepetitions();
+                return;
+            default:
+                throw new \RuntimeException('Nix da');
+        }
+
+                // TODO : check for tooBig...
         $results = NormalizedBulkResult::fromVarBinds($pdu->varBinds, $this->pendingRequestedOids, $this->nonRepeaters);
         if ($this->nonRepeaters > 0) {
             $this->result->appendNonRepeaters($results, $this->nonRepeaters);
@@ -70,5 +82,16 @@ class SnmpTablesResult
     public function wantsMore(): bool
     {
         return ! empty($this->fetchNext);
+    }
+
+    protected function shrinkMaxRepetitions(): void
+    {
+        if ($this->maxRepetitions === 1) {
+            throw new SnmpError('maxRepetitions is 1, packet is still tooBig');
+        }
+        $this->maxRepetitions = (int) max(1, min(
+            floor($this->maxRepetitions * 0.8),
+            $this->maxRepetitions - 1
+        ));
     }
 }
