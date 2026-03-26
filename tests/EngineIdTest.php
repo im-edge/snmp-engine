@@ -68,7 +68,7 @@ class EngineIdTest extends TestCase
         $this->assertEquals($binary, $id->toBinary());
     }
 
-    public function disabledTestArista(): void
+    public function testMacAddress(): void
     {
         /** @var string $binary */
         $binary = hex2bin('800007DB03360102101100');
@@ -79,7 +79,7 @@ class EngineIdTest extends TestCase
         $this->assertEquals('36:01:02:10:11:00', $id->getReadableValue());
         $this->assertEquals($binary, $id->toBinary());
     }
-    public function testAha(): void
+    public function disabledTestArista(): void
     {
         /** @var string $binary */
         $binary = hex2bin('F5717F28993A20283700');
