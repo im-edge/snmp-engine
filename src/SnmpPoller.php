@@ -6,6 +6,7 @@ use Amp\Socket\InternetAddress;
 use IMEdge\SnmpEngine\Application\OidHelper;
 use IMEdge\SnmpEngine\Dispatcher\SnmpDispatcher;
 use IMEdge\SnmpEngine\Error\SnmpTimeoutError;
+use IMEdge\SnmpEngine\Result\CombinedResult;
 use IMEdge\SnmpEngine\Result\SnmpTablesResult;
 use IMEdge\SnmpEngine\Usm\ClientContext;
 use IMEdge\SnmpPacket\Error\SnmpAuthenticationException;
@@ -92,20 +93,18 @@ class SnmpPoller
     /**
      * @param array<string, ?string> $oids
      * @throws SnmpAuthenticationException
-     * @return array<string, VarBind|VarBind[]|null>
      */
-    public function getTable(
+    public function getTables(
         string $clientId,
         array $oids,
         int $maxRepetitions = 10,
         int $nonRepeaters = 0
-    ): array {
+    ): CombinedResult {
         $tables = new SnmpTablesResult($oids, $nonRepeaters, $maxRepetitions);
-        $fetch = $tables->getCurrentBase();
         $requests = 0;
         $maxRequests = 10_000;
-        while (! empty($fetch)) {
-            $fetch = $tables->appendResults(
+        while (! empty($fetch = $tables->getNextOidsToFetch())) {
+            $tables->appendResults(
                 $this->getBulk($clientId, $fetch, $tables->getMaxRepetitions(), $tables->getNonRepeaters()),
             );
             $requests++;
@@ -114,7 +113,7 @@ class SnmpPoller
             }
         }
 
-        return $tables->tables;
+        return $tables->result;
     }
 
     protected function requireClient(string $clientId): ClientContext
