@@ -206,7 +206,7 @@ class SnmpDispatcher
             throw new RuntimeException('Cannot register socket handlers w/o socket');
         }
         try {
-            while ($received = $this->socket->receive()) {
+            while ($received = $this->socket?->receive()) {
                 [$address, $data] = $received;
                 $this->receiveIncomingMessage($data, $address);
             }
@@ -227,7 +227,7 @@ class SnmpDispatcher
             throw new RuntimeException('Cannot register socket6 handlers w/o socket');
         }
         try {
-            while ($received = $this->socket6->receive()) {
+            while ($received = $this->socket6?->receive()) {
                 [$address, $data] = $received;
                 $this->receiveIncomingMessage($data, $address);
             }
