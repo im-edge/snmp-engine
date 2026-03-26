@@ -6,7 +6,7 @@ use IMEdge\SnmpPacket\Error\SnmpError;
 use IMEdge\SnmpPacket\ErrorStatus;
 use IMEdge\SnmpPacket\Pdu\Pdu;
 
-class SnmpTablesResult
+class FetchTables
 {
     public CombinedResult $result;
 

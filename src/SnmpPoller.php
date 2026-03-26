@@ -7,7 +7,7 @@ use IMEdge\SnmpEngine\Application\OidHelper;
 use IMEdge\SnmpEngine\Dispatcher\SnmpDispatcher;
 use IMEdge\SnmpEngine\Error\SnmpTimeoutError;
 use IMEdge\SnmpEngine\Result\CombinedResult;
-use IMEdge\SnmpEngine\Result\SnmpTablesResult;
+use IMEdge\SnmpEngine\Result\FetchTables;
 use IMEdge\SnmpEngine\Usm\ClientContext;
 use IMEdge\SnmpPacket\Error\SnmpAuthenticationException;
 use IMEdge\SnmpPacket\Error\SnmpError;
@@ -99,7 +99,7 @@ class SnmpPoller
         int $maxRepetitions = 10,
         int $nonRepeaters = 0
     ): CombinedResult {
-        $tables = new SnmpTablesResult($oids, $nonRepeaters, $maxRepetitions);
+        $tables = new FetchTables($oids, $nonRepeaters, $maxRepetitions);
         $requests = 0;
         $maxRequests = 10_000;
         while ($tables->wantsMore()) {
