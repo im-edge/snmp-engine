@@ -2,23 +2,25 @@
 
 namespace IMEdge\SnmpEngine\Result;
 
-use IMEdge\SnmpPacket\Message\VarBind;
-use IMEdge\SnmpPacket\Message\VarBindList;
 use IMEdge\SnmpPacket\Pdu\Pdu;
-use IMEdge\SnmpPacket\VarBindValue\ContextSpecific;
 
 class SnmpTablesResult
 {
-    public array $tables = [];
-    protected array $base;
-    protected int $appendedResults = 0;
+    public CombinedResult $result;
+
+    /** @var array<string, ?string> */
+    protected array $fetchNext;
+    /** @var array<string, ?string> */
+    protected array $pendingRequestedOids;
 
     public function __construct(
-        protected array $oids,
+        /** @var array<string, ?string> */
+        protected array $requestedOids,
         protected int $nonRepeaters,
         protected int $maxRepetitions,
     ) {
-        $this->base = $oids;
+        $this->result = new CombinedResult();
+        $this->fetchNext = $this->pendingRequestedOids = $this->requestedOids;
     }
 
     public function getNonRepeaters(): int
@@ -31,89 +33,42 @@ class SnmpTablesResult
         return $this->maxRepetitions;
     }
 
-    public function appendResults(Pdu $pdu): array
+    public function appendResults(Pdu $pdu): void
     {
         // TODO : check for tooBig...
-        $results = self::normalizeBulkResult($pdu->varBinds, $this->base, $this->nonRepeaters);
-        $fetch = [];
+        $results = NormalizedBulkResult::fromVarBinds($pdu->varBinds, $this->pendingRequestedOids, $this->nonRepeaters);
         if ($this->nonRepeaters > 0) {
-            for ($i = 1; $i <= $this->nonRepeaters; $i++) {
-                $this->tables[array_key_first($results)] = array_shift($results);
-                array_shift($this->base);
+            $this->result->appendNonRepeaters($results, $this->nonRepeaters);
+            for ($i = 0; $i < $this->nonRepeaters; $i++) {
+                array_shift($this->pendingRequestedOids);
             }
             $this->nonRepeaters = 0;
         }
-        $done = [];
-        foreach ($this->base as $oid => $alias) {
-            $key = $alias ?? $oid;
-            assert(is_array($results[$key])); // sure?
-            if (isset($this->tables[$key])) {
-                assert(is_array($this->tables[$key])); // sure?
-                foreach ($results[$key] as $k => $v) {
-                    $this->tables[$key][$k] = $v;
-                }
-            } else {
-                $this->tables[$key] = $results[$key];
-            }
-            if (count($results[$key]) < $this->maxRepetitions) {
-                $done[] = $oid;
-            } else {
-                $fetch[$results[$key][array_key_last($results[$key])]->oid] = $alias;
-            }
-        }
 
-        foreach ($done as $oid) {
+        [$fetch, $completedRepeaters] = $this->result->appendRepeaters(
+            $results,
+            $this->pendingRequestedOids,
+            $this->maxRepetitions
+        );
+        foreach ($completedRepeaters as $oid) {
             unset($fetch[$oid]);
-            unset($this->base[$oid]);
+            unset($this->pendingRequestedOids[$oid]);
         }
 
-        $this->appendedResults++;
-
-        return $fetch;
-    }
-
-    public function getCurrentBase(): array
-    {
-        return $this->base;
+        $this->result->cntResults++;
+        $this->fetchNext = $fetch;
     }
 
     /**
-     * @param array<string, ?string>|null $baseOids
-     * @return array
+     * @return array<string, ?string>
      */
-    public static function normalizeBulkResult(VarBindList $varBinds, array $baseOids, int $nonRepeaters): array
+    public function getNextOidsToFetch(): array
     {
-        $results = [];
-        $varBinds = $varBinds->varBinds;
-        $repeaters = $baseOids;
-        for ($i = 1; $i <= $nonRepeaters; $i++) {
-            if ($varBind = array_shift($varBinds)) {
-                $name = array_shift($repeaters);
-                $results[$name ?? $varBind->oid] = $varBind;
-            } else {
-                throw new \ValueError('Response does not contain all requested non-repeaters');
-            }
-        }
-        $repeaters = array_keys($repeaters);
-        $i = 0;
-        /** @var VarBind $varBind */
-        while ($varBind = array_shift($varBinds)) {
-            $prefix = $repeaters[$i];
-            $name = $baseOids[$prefix] ?? $prefix;
-            if ($varBind->value instanceof ContextSpecific) {
-                $results[$name] ??= [];
-            } elseif (str_starts_with($varBind->oid, $prefix)) {
-                assert(is_array($results[$name])); // TODO: check this
-                $results[$name][substr($varBind->oid, strlen($prefix) + 1)] = $varBind;
-            } else { // Hint: skipping all others
-                $results[$name] ??= [];
-            }
-            $i++;
-            if ($i === count($repeaters)) {
-                $i = 0;
-            }
-        }
+        return $this->fetchNext;
+    }
 
-        return $results;
+    public function wantsMore(): bool
+    {
+        return ! empty($this->fetchNext);
     }
 }
